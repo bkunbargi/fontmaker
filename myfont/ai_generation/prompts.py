@@ -16,8 +16,11 @@ STYLE_PRESETS: Dict[str, str] = {
     "minimalist": "ultra-minimal letterforms reduced to essential geometric shapes",
 }
 
-# Character sets for generation
+# Character sets for generation. "book" is first so it is the default: it is
+# the only set a Quill book can use (see charset.BOOK_REQUIRED).
 CHARACTER_SETS: Dict[str, str] = {
+    "book": "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 . , ' ! ? - : ; & \" ( )",
+    "punctuation": ". , ' ! ? - : ; & \" ( )",
     "uppercase": "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z",
     "lowercase": "a b c d e f g h i j k l m n o p q r s t u v w x y z",
     "digits": "0 1 2 3 4 5 6 7 8 9",
@@ -29,6 +32,8 @@ CHARACTER_SETS: Dict[str, str] = {
 
 # Human-readable labels for character sets
 CHARACTER_SET_LABELS: Dict[str, str] = {
+    "book": "Book set (A-Z, a-z, 0-9, punctuation) - required for Quill",
+    "punctuation": "Punctuation only (to fill gaps)",
     "uppercase": "Uppercase (A-Z)",
     "lowercase": "Lowercase (a-z)",
     "digits": "Digits (0-9)",

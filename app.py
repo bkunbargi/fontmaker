@@ -30,6 +30,7 @@ from myfont.character_mapping.charset import UPPERCASE, LOWERCASE, DIGITS
 from myfont.vectorization.potrace_wrapper import check_potrace_installed
 from myfont.font_generation.font_builder import build_font
 from myfont.font_generation.exporter import get_all_formats_bytes, get_font_info, validate_font, get_cbdt_bytes
+from myfont.font_generation.coverage import check_coverage, describe_missing
 from myfont.character_mapping.charset import get_glyph_name
 from myfont.preview.renderer import (
     render_text_preview, create_glyph_grid,
@@ -689,6 +690,7 @@ with tab4:
 
                     progress.progress(80, "Generating files...")
                     st.session_state['generated_font'] = font
+                    st.session_state['missing_book_glyphs'] = check_coverage(font)
                     st.session_state['font_name'] = font_family
                     st.session_state['font_mode'] = font_mode
                     print(f"DEBUG: Stored in session state, font_mode={font_mode}")
@@ -711,7 +713,30 @@ with tab4:
                 generated_mode = st.session_state.get('font_mode', 'monochrome')
                 print(f"DEBUG: Download section - generated_mode={generated_mode}")
 
-                if generated_mode == "color":
+                # Book gate: a font missing letters, digits or punctuation
+                # renders titles like "Ellie's" in two typefaces. Say what is
+                # missing and hold the download until it is fixed, or until
+                # someone explicitly wants a font that isn't for a book.
+                missing = st.session_state.get('missing_book_glyphs')
+                if missing is None:
+                    missing = check_coverage(font)
+                allow_download = True
+                if missing:
+                    st.error(
+                        f"Not ready for a Quill book: {len(missing)} character"
+                        f"{'s' if len(missing) != 1 else ''} missing - "
+                        f"{describe_missing(missing)}. Generate them (the "
+                        f"'Punctuation only' set helps), map them, and build again."
+                    )
+                    allow_download = st.checkbox(
+                        "Download anyway (this font can't be used for a book)"
+                    )
+                else:
+                    st.success("Book-ready: every letter, digit and punctuation mark is present.")
+
+                if not allow_download:
+                    pass
+                elif generated_mode == "color":
                     print("DEBUG: Entering color download branch")
                     # Color font: CBDT/CBLC format
                     try:

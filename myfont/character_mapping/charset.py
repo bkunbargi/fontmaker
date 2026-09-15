@@ -16,6 +16,24 @@ PUNCTUATION = list('.,:;!?\'"-()[]{}')
 # Common symbols for basic fonts
 BASIC_SYMBOLS = list(' .,:;!?\'"-')
 
+# What a Quill book actually types: titles are possessive ("Ellie's"), pages
+# have sentences, dialogue and numbers. A font missing any of these can't be
+# used for a book, because the renderer silently falls back to another font
+# for the missing glyph and the title comes out in two typefaces.
+BOOK_PUNCTUATION = list(".,'!?-:;&\"()")
+BOOK_REQUIRED = UPPERCASE + LOWERCASE + DIGITS + BOOK_PUNCTUATION
+
+# Curly quotes and dashes that editors and phones type in place of the plain
+# ones. Nobody draws these separately; they reuse the plain glyph.
+TYPOGRAPHIC_ALIASES = {
+    "\u2019": "'",   # ’ right single quote / apostrophe
+    "\u2018": "'",   # ‘ left single quote
+    "\u201c": '"',   # “ left double quote
+    "\u201d": '"',   # ” right double quote
+    "\u2013": "-",   # – en dash
+    "\u2014": "-",   # — em dash
+}
+
 # Full ASCII printable characters (excluding space which is separate)
 ASCII_PRINTABLE = [chr(i) for i in range(33, 127)]
 
@@ -34,6 +52,7 @@ CHARSETS = {
     'basic': UPPERCASE + DIGITS + BASIC_SYMBOLS,
     'full': ALL_CHARACTERS,
     'ascii': ASCII_PRINTABLE,
+    'book': BOOK_REQUIRED,
 }
 
 

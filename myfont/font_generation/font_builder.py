@@ -47,13 +47,16 @@ def build_font(
     # Branch based on font mode
     if font_mode == "color":
         from .cbdt_builder import build_cbdt_font
-        return build_cbdt_font(
+        from .coverage import add_typographic_aliases
+        font = build_cbdt_font(
             glyph_images,
             font_family=font_family,
             style_name=style_name,
             version=version,
             units_per_em=units_per_em,
         )
+        add_typographic_aliases(font)
+        return font
 
     # Default: monochrome pipeline
     # Create FontBuilder
@@ -159,6 +162,8 @@ def build_font(
     }
     fb.setupNameTable(name_strings)
 
+    from .coverage import add_typographic_aliases
+    add_typographic_aliases(fb.font)
     return fb.font
 
 
