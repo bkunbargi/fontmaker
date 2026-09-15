@@ -108,3 +108,40 @@ def test_label_check_prefers_the_clean_attempt():
     result = bf.make_book_font("plain", "Checked", lambda p: draw_sheet(), check_labels=check, attempts=3)
     assert result.attempts == 2
     assert not any("drawn wrong" in w for w in result.warnings)
+
+
+def draw_pair(char, size=160):
+    font = ImageFont.load_default(size)
+    img = Image.new("L", (size * 7, size * 3), 255)
+    draw = ImageDraw.Draw(img)
+    draw.text((size * 0.5, size * 2), "H", font=font, fill=0, anchor="ls")
+    draw.text((size * 2, size * 2), char, font=font, fill=0, anchor="ls")
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    return buf.getvalue()
+
+
+def test_patch_replaces_one_glyph_at_the_right_size():
+    plain, _, _ = bf.font_from_sheet(draw_sheet(), "Plain")
+    patched, glyphs, _ = bf.font_from_sheet(
+        draw_sheet(), "Patched", patches={"g": draw_pair("g"), "'": draw_pair("'")}
+    )
+    # the redraw was made at a different pixel size, yet lands at the same
+    # font-unit size because it is measured against its own H
+    for ch in ("g", "'"):
+        lo_a, hi_a = bounds(plain, ch)
+        lo_b, hi_b = bounds(patched, ch)
+        assert abs(hi_a - hi_b) < 25 and abs(lo_a - lo_b) < 25
+        assert abs(advance(plain, ch) - advance(patched, ch)) < 40
+    assert bf.missing_glyphs(patched) == []
+    assert "'" in bf.glyph_prompt("'")
+
+
+def test_pair_with_extra_marks_is_refused():
+    img = Image.open(io.BytesIO(draw_pair("R"))).convert("L")
+    draw = ImageDraw.Draw(img)
+    draw.text((640, 320), "XYZ", font=ImageFont.load_default(160), fill=0, anchor="ls")
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    with pytest.raises(bf.SheetError):
+        bf.extract_pair(np.array(img.convert("RGB")), "R")

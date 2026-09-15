@@ -20,6 +20,7 @@ lets a vision model confirm each glyph is the character it is filed under.
 from __future__ import annotations
 
 import io
+import json
 import math
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
@@ -107,6 +108,23 @@ def sheet_prompt(style: str) -> str:
     )
 
 
+def glyph_prompt(char: str) -> str:
+    """Prompt to redraw one character. The caller passes the font's sheet
+    as a reference image so the style matches; the H beside the character
+    gives its size and baseline, as on the sheet."""
+    shown = json.dumps(char)
+    return (
+        "The attached image is a font specimen sheet. In exactly the same "
+        "lettering style, weight and ink, draw just two characters side by "
+        "side on a plain pure white background, large: a capital H, then the "
+        f"character {shown}. The H must be the same design as the H on the "
+        "sheet, and the second character must be drawn at its normal size "
+        "relative to that H (lowercase smaller than capitals, punctuation "
+        "small). Nothing else: no other letters, labels, boxes or "
+        "decoration, and the two must not touch."
+    )
+
+
 # ---------------------------------------------------------------- extraction
 
 
@@ -173,7 +191,9 @@ def _group_rows(comps, expected_rows: int):
     return members
 
 
-def _cluster_row(comps, labels, expected: int, row_label: str, warnings: List[str]):
+def _cluster_row(
+    comps, labels, expected: int, row_label: str, warnings: List[str], max_merge_gap=None
+):
     """Group a row's components into ``expected`` glyphs.
 
     Components that mostly share columns (the dot of an i, the halves of a
@@ -200,6 +220,10 @@ def _cluster_row(comps, labels, expected: int, row_label: str, warnings: List[st
     merged_gaps = []
     while len(clusters) > expected:
         i = int(np.argmin([gap(i) for i in range(len(clusters) - 1)]))
+        if max_merge_gap is not None and gap(i) > max_merge_gap:
+            raise SheetError(
+                f"row {row_label!r}: found {len(clusters)} characters, expected {expected}"
+            )
         merged_gaps.append(gap(i))
         right = clusters.pop(i + 1)
         clusters[i]["parts"] += right["parts"]
@@ -282,6 +306,33 @@ def extract_glyphs(image: np.ndarray, warnings: Optional[List[str]] = None) -> D
     if spread > 1.35:
         raise SheetError(f"rows are drawn at different sizes ({spread:.2f}x apart)")
     return glyphs
+
+
+def extract_pair(image: np.ndarray, char: str) -> Glyph:
+    """Read a redraw (an H then ``char`` on one line, see ``glyph_prompt``)
+    into a Glyph sized against that H."""
+    ink = _ink_mask(image)
+    labels, comps = _components(ink)
+    warnings: List[str] = []
+    (row,) = _group_rows(comps, 1)
+    # only the parts of one character (the two marks of a ") may be joined;
+    # anything further apart is an extra character the model added
+    widest = max(c["w"] for c in row)
+    anchor, glyph = _cluster_row(row, labels, 2, f"H{char}", warnings, max_merge_gap=0.6 * widest)
+    boxes = []
+    for cluster in (anchor, glyph):
+        x0, x1 = cluster["x0"], cluster["x1"]
+        ids = [k["id"] for k in cluster["parts"]]
+        ink_rows = np.where(np.isin(labels[:, x0:x1], ids).any(axis=1))[0]
+        y0, y1 = int(ink_rows[0]), int(ink_rows[-1]) + 1
+        boxes.append((x0, y0, x1, y1, np.isin(labels[y0:y1, x0:x1], ids)))
+    ax0, ay0, ax1, ay1, _ = boxes[0]
+    cap_px = float(ay1 - ay0)
+    x0, y0, x1, y1, mask = boxes[1]
+    if (y1 - y0) > 1.6 * cap_px:
+        raise SheetError("the redrawn character is far larger than its H")
+    baseline = _fit_baseline(((ax0 + ax1) / 2, ay1), [], cap_px)
+    return Glyph(char, mask, x0, y0, baseline, cap_px)
 
 
 # ------------------------------------------------------------------- tracing
@@ -543,10 +594,19 @@ def expected_labels() -> List[str]:
 # ------------------------------------------------------------------ pipeline
 
 
-def font_from_sheet(sheet: bytes, family: str) -> Tuple[TTFont, Dict[str, Glyph], List[str]]:
-    image = np.array(Image.open(io.BytesIO(sheet)).convert("RGB"))
+def _rgb(png: bytes) -> np.ndarray:
+    return np.array(Image.open(io.BytesIO(png)).convert("RGB"))
+
+
+def font_from_sheet(
+    sheet: bytes, family: str, patches: Optional[Dict[str, bytes]] = None
+) -> Tuple[TTFont, Dict[str, Glyph], List[str]]:
+    """Build the font from a sheet, with ``patches`` ({char: redraw PNG from
+    ``glyph_prompt``}) replacing those characters' glyphs."""
     warnings: List[str] = []
-    glyphs = extract_glyphs(image, warnings)
+    glyphs = extract_glyphs(_rgb(sheet), warnings)
+    for char, png in (patches or {}).items():
+        glyphs[char] = extract_pair(_rgb(png), char)
     return build_font(glyphs, family), glyphs, warnings
 
 
