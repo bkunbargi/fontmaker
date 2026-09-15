@@ -11,6 +11,29 @@ Convert glyph images into usable font files (TTF, WOFF, WOFF2).
 - Export to TTF, WOFF, and WOFF2 formats
 - Live font preview
 
+## Headless book fonts (used by Quill)
+
+`myfont.book_font` builds a complete book font (A-Z, a-z, 0-9, punctuation)
+from one AI-drawn glyph sheet with no manual segmenting or mapping. The sheet
+is requested in fixed rows that each start with a capital H, which gives
+every row its baseline and cap height, so lowercase, descenders and
+punctuation keep their real size. Tracing uses `potracer` (pure Python), so
+no Potrace binary is needed.
+
+```python
+from myfont.book_font import make_book_font
+
+result = make_book_font(
+    "chunky crayon letters", "Quill Crayon",
+    generate_image=lambda prompt: my_image_model(prompt),   # -> PNG bytes
+    check_labels=None,  # optional vision check, see the docstring
+)
+open("QuillCrayon.ttf", "wb").write(result.ttf)
+```
+
+Quill installs this package from GitHub (`pip install git+https://github.com/bkunbargi/fontmaker@<sha>`).
+Tests: `pytest tests/`.
+
 ## Requirements
 
 - Python 3.9+

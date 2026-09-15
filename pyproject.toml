@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "myfont"
+version = "0.2.0"
+description = "Glyph sheets to fonts; myfont.book_font builds a complete book font from one AI sheet"
+requires-python = ">=3.9"
+# OpenCV is needed too but not declared: apps pin their own build
+# (opencv-python-headless here, opencv-contrib-python-headless in Quill) and
+# two cv2 wheels in one environment break each other.
+dependencies = [
+    "fonttools>=4.47",
+    "numpy>=1.24",
+    "Pillow>=10.1",
+    "potracer>=0.0.4",
+]
+
+[tool.setuptools.packages.find]
+include = ["myfont*"]
